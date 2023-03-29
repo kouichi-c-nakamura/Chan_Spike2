@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Nakamura
+    given-names: Kouichi C.
+    orcid: https://orcid.org/0000-0001-7053-0507
+title: "Chan_Spike2"
+version: 1.0.0
+doi: 
+date-released: 2023-03-29
