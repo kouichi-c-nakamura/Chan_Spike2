@@ -1,0 +1,26 @@
+classdef test_Kouichi_extractAdditionalExcelDataForSpike2 < matlab.unittest.TestCase
+    %test_Kouichi_extractAdditionalExcelDataForSpike2 < matlab.unittest.TestCase
+    %   clear;close all; clc; test1 = test_Kouichi_extractAdditionalExcelDataForSpike2; res =test1.run ; disp(res);
+    
+        properties
+        
+    end
+    
+    methods (Test)
+        function t()
+                   % clear;close all; clc; test1 = test_WaveformChan; res =test1.run('testWaveformChan_simpleDataDouble') ; disp(res);
+
+                   
+                   excelpath = 'Z:\Dropbox\Private_Dropbox\DATA_dropbox\kjx data summary.xlsx';
+                   
+                   destfolder = 'Z:\Work\Spike2 folder\Kouichi MATLAB\thalamus\probe\6OHDA\swa\SUA\Spike2MAT';
+                   
+                    [~] = Kouichi_extractAdditionalExcelDataForSpike2(excelpath, destfolder, selectorstr);
+                    
+                    
+                   
+        end
+        
+    end
+end
+

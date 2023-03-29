@@ -1,0 +1,313 @@
+classdef Set_getBUA_params
+    %
+    % As long as you know where those parameter file is, you can repeat the process many times
+    %
+    % For threshold of findpeaks, you can set the coefficient that is used
+    % by multiplied with SD of high-pass filtered data.
+    %
+    % For spike removal window, I found that the optimal or minimum window
+    % size can vary from neuron to neuron. This class allows you to set
+    % spike removal window one-by-one, and save the parameters into a table
+    % format in .mat file. You can also overdraw average waveforms as many
+    % as you want to see validate the choice quickly.
+    %
+    %
+    %% Go through chanSpec and load each WaveformChan
+    % Memory heavy
+    %
+    %% Show findpeaks plots for all of them to determine a global threshold?
+    % with horizontal bar that can be moved?
+    % Use Record.plot for navigation?
+    % with scroller to go through plots? (You cannnot overdraw everything)
+    %
+    % Or it does not habe to be interative? You can set the parameter and re-run to see the results?
+    %
+    %
+    %% Show waveform overdraw for each one to determine tailored spike removal window?
+    % Draggable vertical bars? (Something Spike2 is more suitable)
+    % Communicate with Spike2?
+    %
+    %% The format of params table
+    % Something similar to relational databese
+    %
+    % table with params.Properties.VariableNames of {'parentdir','name','ChanTitle','SpikeWin1','SpikeWin2'}
+    % params.Properties.UserData.threshold
+    %
+    % Each run will read the parameters, if exist
+    % Each run will overwrite the parameters
+    %
+    %
+    % See also
+    % Set_getBUA_params_test, ChanSpecifier
+    
+    
+    properties
+        parampath    % path to locate the table data for parameters
+        Tparams      % table
+        chanSpec     % ChanSpecifier object
+        order = 3;
+        SDxdefault = 3;
+        SpikeWindefault = [1.5,2.5];
+        basedir = '' % Full path to "Where Private_Dropbox"
+    end
+    
+    properties (Dependent = true)
+        SDx % double; The threshold ... how many times of standard deviation?
+        % If Tparams does not exist, SDx = 3 is used
+        % If Tparams is already available, use the value stored in it
+    end
+    
+    properties (SetAccess = private)
+        headers =  {'parentdir','matname','chantitle','SpikeWin1','SpikeWin2'};
+    end
+    
+    methods
+        function obj = Set_getBUA_params(chanSpec,parampath,basedir)
+            
+            assert(isa(chanSpec,'ChanSpecifier'));
+            
+            obj.chanSpec = chanSpec;
+            
+            assert(isregexpmatched(parampath,'\.mat$'))
+            
+            assert(isdir(basedir))
+            
+            obj.basedir = basedir;
+            
+            if exist(parampath,'file') == 2
+                % load
+                S = load(parampath); % Tparams
+                obj.Tparams = S.Tparams;
+                clear S
+                
+                assert(isequal(Tparams.Properties.VariableNames,...
+                    obj.headers))
+                
+                % get the stored value
+                obj.SDx = obj.Tparams.Properties.UserData.SDx;
+                obj.parampath = parampath;
+                
+            else
+                % create
+                
+                C = repmat({'','','',[],[]},0,1);
+                obj.Tparams = cell2table(C,'VariableNames',obj.headers);
+                
+                obj.Tparams.Properties.UserData.SDx = obj.SDxdefault; % store the default value
+                obj.parampath = parampath;
+            end
+        end
+        %--------------------------------------------------------------------------
+        function SDx = get.SDx(obj)
+            if istable(obj.Tparams)
+                SDx = obj.Tparams.Properties.UserData.SDx;
+            else
+                %TODO what if table does not exist?
+                SDx = obj.SDxdefault;
+            end
+            
+        end
+        %--------------------------------------------------------------------------
+        function obj = set.SDx(obj,newSDx)
+            obj = obj.set_SDx(newSDx);
+        end
+        
+        
+        %--------------------------------------------------------------------------
+        function inspectThresholdAll(obj)
+            chSp = obj.chanSpec;
+            
+            tf = true(sum(chSp.ChanNum),1);
+            inspectThresholdSome(obj,tf);
+            
+        end
+        
+        status = inspectThresholdOne(obj,m,ch)
+        
+        inspectThresholdSome(obj,tf)
+        
+        
+        %--------------------------------------------------------------------------
+        function axh = averagewaveformAll(obj)
+            chSp = obj.chanSpec;
+            
+            figure;
+            axh = axes;
+            
+            for m = 1:chSp.MatNum
+                for ch = 1:chSp.ChanNum(m)
+                    axh = averagewaveformOne(obj,m,ch,axh);
+                end
+            end
+        end
+        
+        
+        %--------------------------------------------------------------------------
+        axh = averagewaveformSome(obj,tf)
+        
+        %--------------------------------------------------------------------------
+        
+        [spikeWin,width_ms,status] = averagewaveformOne(obj,m,ch,varargin)
+        
+        function saveT(obj)
+            
+            while 1
+                commandwindow
+                strResponse = input('Do you want to save the changes to obj.Tparams? Y/N:', 's');
+                if strcmpi('Y', strResponse)
+                    
+                    K_savevar('',obj.parampath,obj.Tparams);
+                    
+                    break;
+                elseif strcmpi('N', strResponse)
+                    dsip('No change has been saved');
+                    break;
+                else
+                    eval(strResponse)
+                end
+            end
+        end
+        
+        
+    end
+    
+    
+    
+    methods (Access = protected)
+        
+        function obj = set_SDx(newSDx)
+            obj.Tparams.Properties.UserData.SDx = newSDx; %TODO
+        end
+        %--------------------------------------------------------------------------
+        function objout = updateT(obj,newT,m,ch)
+            
+            row = mch2row(obj,m,ch);
+            
+            assert(isequal(obj.Tparams.Properties.VariableNames,...
+                newT.Properties.VariableNames))
+            
+            if row > size(obj.Tparams,1)
+                objout = appendT(obj,newT);
+            else
+                objout = overwriteT(obj,newT,row);
+            end
+            
+        end
+        %--------------------------------------------------------------------------
+        function objout = appendT(obj,newT)
+            
+            objout = obj;
+            objout.Tparams = [obj.Tparams; newT];
+        end
+        %--------------------------------------------------------------------------
+        function objout = overwriteT(obj,newT,row)
+            
+            if isempty(obj.Tparams)
+                obj.Tparams = [obj.Tparams; newT];
+            end
+            
+            objout = obj;
+            objout.Tparams(row,:) = newT;
+        end
+        
+        %--------------------------------------------------------------------------
+        
+        function Whigh = highpass(obj,W)
+            Wn = normalizedfreq(300,W.SRate);
+            [b,a] = butter(obj.order,Wn,'high');
+            Whigh = W;
+            Whigh.Data = filtfilt(b,a,W.Data);
+        end
+        
+        %--------------------------------------------------------------------------
+        
+        [m,ch] = row2mch(obj,row)
+        
+        row = mch2row(obj,m,ch)
+        
+        
+        function spikeWin = getSpikeWin(obj,m,ch)
+            % See also
+            % ChanSpecifier.changepathplatform
+            
+            
+            if isempty(obj.Tparams)
+                spikeWin = obj.SpikeWindefault;
+                return
+                
+            else
+                
+                obj = changeplatform(obj);
+                
+                row = mch2row(obj,m,ch);
+                
+                spikeWin = zeros([1 2]);
+                
+                spikeWin(1) = obj.Tparams.SpikeWin1(row);
+                
+                spikeWin(2) = obj.Tparams.SpikeWin2(row);
+                
+            end
+            
+        end
+        
+        %--------------------------------------------------------------------------
+        function newT = prepareNewT(obj,spikeWin,m,ch)
+            % See also
+            % ChanSpecifier.changepathplatform
+            newT = obj.Tparams;
+            newT(:,:) = [];
+            
+            chSp = obj.chanSpec;
+            
+            S = chSp.getstructOne(m,ch);
+            
+            newT.parentdir{1} = S.parentdir;
+            newT(1,'matname')   = S.parent;
+            newT.chantitle{1} = S.title;
+            newT.SpikeWin1{1} = spikeWin(1);
+            newT.SpikeWin1{2} = spikeWin(2);
+            
+            
+            
+        end
+        
+        %--------------------------------------------------------------------------
+        
+        function objout = changepathplatform(obj)
+            % Updates full path information in obj.Tparams based on
+            % relative path fronm obj.basedir
+            %
+            % See also
+            % ChanSpecifier.changepathplatform
+            
+            if isempty(obj.Tparams)
+                objout = obj;
+                return
+                
+            else
+                
+                basedirsp = strsplit(obj.basedir,filesep);
+                
+                Tparentdir = obj.Tparams.parentdir;
+                
+                loc = regexp(Tparentdir,basedirsp(end),'end'); % isequal(basedirsp(end),'Private_Dropbox')
+                assert(all(cellfun(@(x) isscalar(x) && isnumeric(x) && x > 0 && x == loc{1}, loc)));
+                
+                oldbasedir = Tparentdir{1}(1:loc{1});
+                
+                Tnewparentdir = unipath(regexprep(Tparentdir,...
+                    ['^',esc(oldbasedir)],esc(obj.basedir)));
+                
+                objout = obj;
+                objout.Tparams.parentdir = Tnewparentdir; % change platform and update full path
+            end
+            
+        end
+        
+    end
+    %--------------------------------------------------------------------------
+    methods (Static)
+        
+    end
+end
